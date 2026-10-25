@@ -15,13 +15,13 @@ window.onerror = function(message, url, lineNumber) {
   return true;
 };
 
-
 $(document).ready(function() {
 
   validateTokenExpiration();
   setInterval(validateTokenExpiration, 3e5);
 
 })
+
 
 document.addEventListener('DOMContentLoaded', function() {
   document.getElementById("goButton").addEventListener("click", function(){
@@ -91,85 +91,116 @@ function RunForestRun(mp) {
 
 //make the call to beacon
 function HackTheMatrix(progressBar) {
-  var start = new Date(decodeURIComponent(params.start));
-  var end = new Date(decodeURIComponent(params.end));
+  const start = new Date(decodeURIComponent(params.start));
+  const end = new Date(decodeURIComponent(params.end));
 
   BeaconClient.nitc.search(params, start, end, {
-    host: params.host, userId: params.userId, token,
-    onProgress: function(val, total) { progressBar.setValue(val / total); },
+    host: params.host,
+    userId: params.userId,
+    token,
+    onProgress: function(val, total) {
+      progressBar.setValue(total ? val / total : 0);
+    }
   }).then(function(nitcs) {
+
     let exports;
 
-    if (document.getElementById("Activity").checked) {  // Activity list export
-        exports = nitcs.results.map(function(d){
-            var rawSdate = new Date(d.StartDate);
-            var rawEdate = new Date(d.EndDate);
-            d.StartDateFixed = new Date(rawSdate.getTime() + ( rawSdate.getTimezoneOffset() * 60000 ));
-            d.EndDateFixed = new Date(rawEdate.getTime() + ( rawEdate.getTimezoneOffset() * 60000 ));
-            var tags = d.Tags.map(function(d){return d.Name}).join(",");
-            var numParticipants = 0;
-            var totalHours = 0;
-            var participants = "";
-            d.Participants.map(function(p) {
-                numParticipants++;
-                var hours = parseFloat((Math.abs(new Date(p.EndDate) - new Date(p.StartDate)) / 36e5).toFixed(2));
-                totalHours += hours;
-                participants +=  p.Person.FullName + "(" + hours.toString() + ") ";
-            });
-            var rObj = {};
-            rObj["Name"] = d.Name.replaceAll('#','');
-            rObj["StartDate"] = d.StartDateFixed;
-            rObj["EndDate"] = d.EndDateFixed;
-            rObj["Unit"] = d.CreatedAt.Code;
-            rObj["Tags"] = tags;
-            rObj["TotalParticipants"] = numParticipants;
-            rObj["TotalHours"] = totalHours;
-            rObj["Participants"] = participants;
+    if (document.getElementById("Activity").checked) {
+      // Activity list export
+      exports = nitcs.results.map(function(d) {
+        const rawSdate = new Date(d.StartDate);
+        const rawEdate = new Date(d.EndDate);
+        const startDateFixed = new Date(
+          rawSdate.getTime() + (rawSdate.getTimezoneOffset() * 60000)
+        );
+        const endDateFixed = new Date(
+          rawEdate.getTime() + (rawEdate.getTimezoneOffset() * 60000)
+        );
+        const tags = d.Tags.map(function(t) {
+          return t.Name;
+        }).join(",");
+        let numParticipants = 0;
+        let totalHours = 0;
+        let participants = "";
+        d.Participants.forEach(function(p) {
+          numParticipants++;
+          const hours = parseFloat(
+            (
+              Math.abs(
+                new Date(p.EndDate) - new Date(p.StartDate)
+              ) / 36e5
+            ).toFixed(2)
+          );
+          totalHours += hours;
+          participants += `${p.Person.FullName}[${hours}] `;
+        });
 
-            return rObj
+        return {
+          Name: d.Name.replaceAll('#', ''),
+          StartDate: moment(startDateFixed).format('YYYY-MM-DD HH:mm:ss'),
+          EndDate: moment(endDateFixed).format('YYYY-MM-DD HH:mm:ss'),
+          Unit: d.CreatedAt.Code,
+          Tags: tags,
+          TotalParticipants: numParticipants,
+          TotalHours: totalHours,
+          Participants: participants
+        };
+      });
+    } else {
+      // Member list export
+      exports = [];
+      const listOfActivities = [];
+      nitcs.results.forEach(function(d) {
+        const activities = d.Tags.map(function(t) {
+          return t.Name;
         });
-    } else {    // Member list export
-        exports = [];
-        var listOfActivities = [];
-        nitcs.results.map(function(d) {
-            var activities = d.Tags.map(function(t){return t.Name});
-            d.Participants.map(function(p) {
-                var i = 0;
-                var name = p.Person.FullName;
-                var hours = parseFloat((Math.abs(new Date(p.EndDate) - new Date(p.StartDate)) / 36e5).toFixed(2));
-                if ((i = findInArr(exports, name)) == null) {
-                    exports.push({Name: name});
-                    i = exports.length - 1;
-                }
-                activities.forEach(function(a) {
-                    if (typeof exports[i][a] === 'undefined') {
-                        exports[i][a] = hours;
-                    } else {
-                        exports[i][a] += hours;
-                    }
-                    if (typeof listOfActivities[a] === 'undefined')
-                        listOfActivities.push(a);       // Keep track of all the activities in this export
-                });
-            });
+        d.Participants.forEach(function(p) {
+          let i = 0;
+          const name = p.Person.FullName;
+          const hours = parseFloat(
+            (
+              Math.abs(
+                new Date(p.EndDate) - new Date(p.StartDate)
+              ) / 36e5
+            ).toFixed(2)
+          );
+          if ((i = findInArr(exports, name)) === null) {
+            exports.push({ Name: name });
+            i = exports.length - 1;
+          }
+          activities.forEach(function(a) {
+            if (typeof exports[i][a] === 'undefined') {
+              exports[i][a] = hours;
+            } else {
+              exports[i][a] += hours;
+            }
+            if (typeof listOfActivities[a] === 'undefined') {
+              listOfActivities.push(a);
+            }
+          });
         });
-        // Pad out the activities so we have the same number of columns for all members
-        for (let i =0; i < exports.length; i++) {
-            listOfActivities.forEach(function(a) {
-                if (typeof exports[i][a] === 'undefined') {
-                    exports[i][a] = 0;
-                }
-            });
-        }
+      });
+
+      // Pad out activities so all members have same columns
+      for (let i = 0; i < exports.length; i++) {
+        listOfActivities.forEach(function(a) {
+          if (typeof exports[i][a] === 'undefined') {
+            exports[i][a] = 0;
+          }
+        });
+      }
     }
+
     progressBar.setValue(1);
     progressBar.close();
     downloadCSV("LighthouseExport.csv", exports);
 
-    progressBar.close();
-
   }).catch(function(err) {
+
     console.error('NITC export fetch failed', err);
-    alert('Failed to fetch non-incident tasks for export. Your session may have expired.');
+    alert(
+      'Failed to fetch non-incident tasks for export. Your session may have expired.'
+    );
     progressBar.close();
   });
 }
@@ -191,24 +222,20 @@ function convertArrayOfObjectsToCSV(data) {
   result += lineDelimiter;
 
   data.forEach(function(item) {
-    ctr = 0;
-    keys.forEach(function(key) {
-      if (item[key] === null) {
-        item[key] = ""
-      }
-      if (ctr > 0)
+    keys.forEach(function(key, ctr) {
+      if (ctr > 0) {
         result += columnDelimiter;
-//      if (item[key] === undefined)
-//        item[key] = 0;
-      result += "\""+item[key]+"\"";
-      ctr++;
+      }
+      const value = String(item[key] ?? '')
+        // Escape CSV quotes
+        .replace(/"/g, '""');
+      result += `"${value}"`;
     });
     result += lineDelimiter;
   });
 
   return result;
 }
-
 
 function downloadCSV(file,dataIn) {
   var csv = convertArrayOfObjectsToCSV(dataIn);
