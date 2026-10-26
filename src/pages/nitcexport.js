@@ -110,6 +110,7 @@ function HackTheMatrix(progressBar) {
       exports = nitcs.results.map(function(d) {
         const rawSdate = new Date(d.StartDate);
         const rawEdate = new Date(d.EndDate);
+        // Adjust UTC date returned by API to local display time
         const startDateFixed = new Date(
           rawSdate.getTime() + (rawSdate.getTimezoneOffset() * 60000)
         );
@@ -135,6 +136,8 @@ function HackTheMatrix(progressBar) {
           participants += `${p.Person.FullName}[${hours}] `;
         });
 
+        // Assumes StartDate and EndDate are always populated
+        // Null values will export as Invalid date
         return {
           Name: d.Name.replaceAll('#', ''),
           StartDate: moment(startDateFixed).format('YYYY-MM-DD HH:mm:ss'),

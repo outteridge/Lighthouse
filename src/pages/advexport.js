@@ -8,10 +8,7 @@ import BeaconClient from '../shared/BeaconClient.js';
 
 import '../../styles/pages/advexport.css';
 
-
 global.jQuery = $;
-
-
 
 var params = getSearchParameters();
 
@@ -273,10 +270,10 @@ function HackTheMatrix(id, host, progressBar) {
         }
         // Special Cases
         //console.log(key)
-        switch (key) {
-          // Export dates as YYYY-MM-DD HH:mm:ss, eg 2026-10-03 08:55:20
-          // Balances human readability with reliable Excel and Power Query date recognition
 
+        // Export dates as YYYY-MM-DD HH:mm:ss, eg 2026-10-03 08:55:20
+        // ISO-like format improves sorting and Excel/Power Query date recognition
+        switch (key) {
           case 'JobReceived':
             rawValue = moment(
               parseISOLocal(d.JobReceived)
